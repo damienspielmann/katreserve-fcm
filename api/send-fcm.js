@@ -1,27 +1,44 @@
 // api/send-fcm.js
 const admin = require("firebase-admin");
+const { URL } = require("url");
 
-function sendJson(res, status, obj) {
-  res.status(status);
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  // CORS permissif pour tests (ajuste le domaine en prod si besoin)
+// Utilitaires réponse + CORS
+function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  return res.end(JSON.stringify(obj));
+}
+function sendJson(res, status, obj) {
+  setCors(res);
+  res.statusCode = status;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.end(JSON.stringify(obj));
 }
 
-function parseBody(req) {
+// Lecture sûre du body (req est un stream)
+async function readJsonBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const raw = Buffer.concat(chunks).toString("utf8");
+  if (!raw) return {};
   try {
-    if (!req.body) return {};
-    if (typeof req.body === "string") return JSON.parse(req.body);
-    return req.body; // déjà objet
+    return JSON.parse(raw);
   } catch (e) {
     throw new Error("JSON invalid dans le corps de la requête");
   }
 }
 
-// --- Initialisation Firebase Admin (singleton) ---
+// Parse querystring (pour ?secret=...)
+function getQuery(req) {
+  try {
+    const u = new URL(req.url, "http://localhost");
+    return Object.fromEntries(u.searchParams.entries());
+  } catch {
+    return {};
+  }
+}
+
+// --- Init Firebase Admin (singleton) ---
 let initError = null;
 if (!admin.apps.length) {
   try {
@@ -31,27 +48,26 @@ if (!admin.apps.length) {
     }
     const serviceAccount = JSON.parse(serviceAccountJson);
 
-    // ⚠️ Cas typique : clé privée mal formattée
-    // Si tu obtiens 'PEM routines' dans les logs, vérifie les \n.
+    // Normaliser la clé privée si les \n ont été échappés
+    if (serviceAccount.private_key && serviceAccount.private_key.includes("\\n")) {
+      serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, "\n");
+    }
+
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
     });
   } catch (e) {
     initError = e;
-    // On ne throw pas ici pour pouvoir renvoyer un message clair côté requête
     console.error("[init] Firebase Admin init error:", e);
   }
 }
 
 module.exports = async (req, res) => {
-  // Pré-CORS
+  setCors(res);
   if (req.method === "OPTIONS") {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-    return res.status(200).end();
+    res.statusCode = 200;
+    return res.end();
   }
-
   if (req.method !== "POST") {
     return sendJson(res, 405, { error: "Méthode non autorisée. Utilise POST." });
   }
@@ -68,26 +84,18 @@ module.exports = async (req, res) => {
     return sendJson(res, 500, { error: "API_SECRET manquant dans les variables d'environnement" });
   }
 
-  let body;
   try {
-    body = parseBody(req);
-  } catch (e) {
-    return sendJson(res, 400, { error: String(e.message || e) });
-  }
-
-  // Auth simple par secret (Bearer, query ou body)
-  try {
+    // Auth (Bearer, query, body)
     const authHeader = req.headers["authorization"] || "";
     const bearer = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    const secret = bearer || req.query?.secret || body?.secret;
+    const query = getQuery(req);
+    const body = await readJsonBody(req);
+
+    const secret = bearer || query.secret || body.secret;
     if (secret !== API_SECRET) {
       return sendJson(res, 401, { error: "Unauthorized (secret invalide)" });
     }
-  } catch (e) {
-    return sendJson(res, 401, { error: "Unauthorized (analyse header/query/body)" });
-  }
 
-  try {
     const { token, notification, data, android, apns, webpush } = body || {};
     if (!token || !notification) {
       return sendJson(res, 400, { error: "Requiert 'token' et 'notification'." });

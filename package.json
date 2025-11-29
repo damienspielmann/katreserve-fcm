@@ -1,14 +1,11 @@
 {
   "name": "katreserve-fcm",
-  "private": true,
   "version": "1.0.0",
-  "main": "api/send-fcm.js",
+  "private": true,
   "scripts": {
-    "start": "node api/send-fcm.js"
+    "dev": "node api/send-push.js"
   },
   "dependencies": {
-    "@react-native-firebase/app": "^23.5.0",
-    "@react-native-firebase/messaging": "^23.5.0",
     "firebase-admin": "^12.7.0"
   }
 }

@@ -1,5 +1,5 @@
 // api/send-push.js
-import admin from 'firebase-admin';
+const admin = require('firebase-admin');
 
 if (!admin.apps.length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS);
@@ -9,16 +9,26 @@ if (!admin.apps.length) {
   });
 }
 
-export default async function handler(req, res) {
+/**
+ * Body attendu:
+ * {
+ *   "tokens": ["fcmToken1", "fcmToken2", ...],
+ *   "title": "Titre",
+ *   "body": "Texte de la notification"
+ * }
+ */
+module.exports = async (req, res) => {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
+    res.statusCode = 405;
+    return res.json({ error: 'Method not allowed' });
   }
 
   try {
     const { tokens, title, body } = req.body;
 
     if (!Array.isArray(tokens) || tokens.length === 0) {
-      return res.status(400).json({ error: 'No tokens provided' });
+      res.statusCode = 400;
+      return res.json({ error: 'No tokens provided' });
     }
 
     const message = {
@@ -37,9 +47,11 @@ export default async function handler(req, res) {
 
     console.log('FCM response:', JSON.stringify(response, null, 2));
 
-    return res.status(200).json({ success: true, response });
+    res.statusCode = 200;
+    return res.json({ success: true, response });
   } catch (e) {
     console.error('send-push error:', e);
-    return res.status(500).json({ error: e.message || String(e) });
+    res.statusCode = 500;
+    return res.json({ error: e.message || String(e) });
   }
-}
+};

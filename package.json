@@ -9,6 +9,6 @@
   "dependencies": {
     "@react-native-firebase/app": "^23.5.0",
     "@react-native-firebase/messaging": "^23.5.0",
-    "firebase-admin": "^12.5.0"
+    "firebase-admin": "^12.7.0"
   }
 }

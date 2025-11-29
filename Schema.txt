@@ -1,0 +1,59 @@
+ 			KATRESERVE (Frontend)
+ -----------------------------------------------------------------
+ | L'utilisateur crée / approuve / refuse une réservation        |
+ |                                                               |
+ | → L’app récupère les tokens Expo de chaque utilisateur        |
+ | → L’app stocke les tokens dans Firestore                      |
+ | → L’app appelle ton endpoint Vercel                           |
+ |                                                               |
+ |  fetch("https://katreserve-fcm.vercel.app/api/send-push")     |
+ -----------------------------------------------------------------
+                                   |
+                                   | Envoie une requête HTTPS
+                                   ▼
+             🌐 VERCEL (Backend = ton mini-serveur)
+ -----------------------------------------------------------------
+ | Endpoint : /api/send-push                                      |
+ |                                                               |
+ | Le code Node.js :                                             |
+ |   ✅ reçoit les tokens                                         |
+ |   ✅ construit la notification                                 |
+ |   ✅ appelle les serveurs Expo Push                            |
+ |   ✅ renvoie "OK" à l'app                                      |
+ -----------------------------------------------------------------
+                                   |
+                                   | Appelle les serveurs Expo Push
+                                   ▼
+             🚀 SERVEURS EXPO PUSH (Cloud)
+ -----------------------------------------------------------------
+ | Expo Push Platform                                             |
+ |   → transforme ton message                                     |
+ |   → envoie à Apple (APNs) ou Google (FCM) selon le device      |
+ -----------------------------------------------------------------
+                                   |
+                                   | Réseau Apple/Google
+                                   ▼
+                    📱 Téléphones des utilisateurs
+ -----------------------------------------------------------------
+ | Notification reçue :                                           |
+ |   🔔 "Nouvelle demande de Damien"                              |
+ |   🔔 "Giacomo a approuvé votre demande"                        |
+ -----------------------------------------------------------------
+
+
+Résumé ultra-simple
+✅ Frontend = ton app Katreserve
+
+→ Affiche les écrans
+→ Gère les réservations
+→ Appelle ton serveur Vercel
+
+✅ Backend = ton serveur Vercel
+
+→ Envoie les notifications
+→ Exécute des tâches sécurisées
+
+✅ Endpoint = une URL spéciale
+
+→ /api/send-push
+→ Quand on l’appelle, il exécute ton code de notification

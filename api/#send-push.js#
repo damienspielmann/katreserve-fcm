@@ -1,0 +1,57 @@
+// api/send-push.js 03.12.2025
+const admin = require('firebase-admin');
+
+if (!admin.apps.length) {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_ADMIN_CREDENTIALS);
+
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
+
+/**
+ * Body attendu:
+ * {
+ *   "tokens": ["fcmToken1", "fcmToken2", ...],
+ *   "title": "Titre",
+ *   "body": "Texte de la notification"
+ * }
+ */
+module.exports = async (req, res) => {
+  if (req.method !== 'POST') {
+    res.statusCode = 405;
+    return res.json({ error: 'Method not allowed' });
+  }
+
+  try {
+    const { tokens, title, body } = req.body;
+
+    if (!Array.isArray(tokens) || tokens.length === 0) {
+      res.statusCode = 400;
+      return res.json({ error: 'No tokens provided' });
+    }
+
+    const message = {
+      tokens,
+      notification: {
+        title: title || 'Notification',
+        body: body || '',
+      },
+      data: {
+        click_action: 'FLUTTER_NOTIFICATION_CLICK',
+        source: 'katreserve',
+      },
+    };
+
+    const response = await admin.messaging().sendEachForMulticast(message);
+
+    console.log('FCM response:', JSON.stringify(response, null, 2));
+
+    res.statusCode = 200;
+    return res.json({ success: true, response });
+  } catch (e) {
+    console.error('send-push error:', e);
+    res.statusCode = 500;
+    return res.json({ error: e.message || String(e) });
+  }
+};
